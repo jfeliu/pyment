@@ -34,7 +34,7 @@ class PyComment(object):
 
     """
     def __init__(self, input_file, input_style=None, output_style='reST', quotes='"""', first_line=True,
-                 convert_only=False, config_file=None, ignore_private=False, num_of_spaces=4, skip_empty=False,
+                 convert_only=False, config_file=None, ignore_private=False, num_of_spaces=4, skip_empty=False, skip_types=False, skip_default_values=False,
                  **kwargs):
         """Sets the configuration including the source to proceed and options.
 
@@ -50,6 +50,8 @@ class PyComment(object):
         :param ignore_private: don't proceed the private methods/functions starting with __ (two underscores)
         :param num_of_spaces: the number of spaces for a tab on output
         :param skip_empty: if set, will not write the params, returns, or raises sections if they are empty
+        :param skip_types: if set, won't include types in docstrings
+        :param skip_default_values: if set, won't include default values in docstrings
 
         """
         self.file_type = '.py'
@@ -69,6 +71,8 @@ class PyComment(object):
         self.ignore_private = ignore_private
         self.num_of_spaces = num_of_spaces
         self.skip_empty = skip_empty
+        self.skip_types = skip_types
+        self.skip_default_values = skip_default_values
         self.kwargs = kwargs
 
     def _parse(self):
@@ -110,8 +114,8 @@ class PyComment(object):
                 elem += l
                 if l.endswith(':'):
                     reading_element = 'end'
-            elif (l.startswith('async def ') or l.startswith('def ') or l.startswith('class ')) and not reading_docs:
-                if self.ignore_private and l[l.find(' '):].strip().startswith("__"):
+            elif (l.startswith('async def ') or l.startswith('def ')) and not reading_docs:
+                if self.ignore_private and l[l.find(' '):].strip().startswith("_"):
                     # If we were still looking for the class docstring, stop
                     # looking.  Otherwise we'll mistake this __dunder_method__
                     # docstring for the class docstring and mess stuff up!
@@ -140,6 +144,8 @@ class PyComment(object):
                               first_line=self.first_line,
                               num_of_spaces=self.num_of_spaces,
                               skip_empty=self.skip_empty,
+                              skip_types=self.skip_types,
+                              skip_default_values=self.skip_default_values,
                               **self.kwargs)
                 elem_list.append({'docs': e, 'location': (-i, -i)})
             else:

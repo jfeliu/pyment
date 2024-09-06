@@ -973,68 +973,71 @@ class DocsTools(object):
         style_return = self.opt['return'][self.style['in']]['name'][:-1]
         style_raise = self.opt['raise'][self.style['in']]['name'][:-1]
         last_element = {'nature': None, 'name': None}
-        for line in data.splitlines():
-            param_name = None
-            param_type = None
-            param_description = None
-            param_part = None
-            # parameter statement
-            if line.strip().startswith(style_param):
-                last_element['nature'] = 'param'
-                last_element['name'] = None
-                line = line.strip().replace(style_param, '', 1).strip()
-                if ':' in line:
-                    param_part, param_description = line.split(':', 1)
-                else:
-                    print("WARNING: malformed docstring parameter")
-                res = re.split(r'\s+', param_part.strip())
-                if len(res) == 1:
-                    param_name = res[0].strip()
-                elif len(res) == 2:
-                    param_type, param_name = res[0].strip(), res[1].strip()
-                else:
-                    print("WARNING: malformed docstring parameter")
-                if param_name:
-                    # keep track in case of multiline
+        for i, line in enumerate(data.splitlines()):
+            try:
+                param_name = None
+                param_type = None
+                param_description = None
+                param_part = None
+                # parameter statement
+                if line.strip().startswith(style_param):
                     last_element['nature'] = 'param'
-                    last_element['name'] = param_name
-                    if param_name not in ret:
-                        ret[param_name] = {'type': None, 'type_in_param': None, 'description': None}
-                    if param_type:
-                        ret[param_name]['type_in_param'] = param_type
-                    if param_description:
-                        ret[param_name]['description'] = param_description.strip()
-                else:
-                    print("WARNING: malformed docstring parameter: unable to extract name")
-            # type statement
-            elif line.strip().startswith(style_type):
-                last_element['nature'] = 'type'
-                last_element['name'] = None
-                line = line.strip().replace(style_type, '', 1).strip()
-                if ':' in line:
-                    param_name, param_type = line.split(':', 1)
-                    param_name = param_name.strip()
-                    param_type = param_type.strip()
-                else:
-                    print("WARNING: malformed docstring parameter")
-                if param_name:
-                    # keep track in case of multiline
+                    last_element['name'] = None
+                    line = line.strip().replace(style_param, '', 1).strip()
+                    if ':' in line:
+                        param_part, param_description = line.split(':', 1)
+                    else:
+                        print("WARNING: malformed docstring parameter")
+                    res = re.split(r'\s+', param_part.strip())
+                    if len(res) == 1:
+                        param_name = res[0].strip()
+                    elif len(res) == 2:
+                        param_type, param_name = res[0].strip(), res[1].strip()
+                    else:
+                        print("WARNING: malformed docstring parameter")
+                    if param_name:
+                        # keep track in case of multiline
+                        last_element['nature'] = 'param'
+                        last_element['name'] = param_name
+                        if param_name not in ret:
+                            ret[param_name] = {'type': None, 'type_in_param': None, 'description': None}
+                        if param_type:
+                            ret[param_name]['type_in_param'] = param_type
+                        if param_description:
+                            ret[param_name]['description'] = param_description.strip()
+                    else:
+                        print("WARNING: malformed docstring parameter: unable to extract name")
+                # type statement
+                elif line.strip().startswith(style_type):
                     last_element['nature'] = 'type'
-                    last_element['name'] = param_name
-                    if param_name not in ret:
-                        ret[param_name] = {'type': None, 'type_in_param': None, 'description': None}
-                    if param_type:
-                        ret[param_name]['type'] = param_type.strip()
-            elif line.strip().startswith(style_raise) or line.startswith(style_return):
-                # fixme not managed in this function
-                last_element['nature'] = 'raise-return'
-                last_element['name'] = None
-            else:
-                # suppose to be line of a multiline element
-                if last_element['nature'] == 'param':
-                    ret[last_element['name']]['description'] += f"\n{line}"
-                elif last_element['nature'] == 'type':
-                    ret[last_element['name']]['description'] += f"\n{line}"
+                    last_element['name'] = None
+                    line = line.strip().replace(style_type, '', 1).strip()
+                    if ':' in line:
+                        param_name, param_type = line.split(':', 1)
+                        param_name = param_name.strip()
+                        param_type = param_type.strip()
+                    else:
+                        print("WARNING: malformed docstring parameter")
+                    if param_name:
+                        # keep track in case of multiline
+                        last_element['nature'] = 'type'
+                        last_element['name'] = param_name
+                        if param_name not in ret:
+                            ret[param_name] = {'type': None, 'type_in_param': None, 'description': None}
+                        if param_type:
+                            ret[param_name]['type'] = param_type.strip()
+                elif line.strip().startswith(style_raise) or line.startswith(style_return):
+                    # fixme not managed in this function
+                    last_element['nature'] = 'raise-return'
+                    last_element['name'] = None
+                else:
+                    # suppose to be line of a multiline element
+                    if last_element['nature'] == 'param':
+                        ret[last_element['name']]['description'] += f"\n{line}"
+                    elif last_element['nature'] == 'type':
+                        ret[last_element['name']]['description'] += f"\n{line}"
+            except Exception as exc:
+                raise ValueError(f"Failing data: {data}") from exc
         return ret
 
     def _extract_not_tagstyle_old_way(self, data):
@@ -1285,7 +1288,7 @@ class DocString(object):
 
     def __init__(self, elem_raw, spaces='', docs_raw=None, quotes="'''", input_style=None, output_style=None,
                  first_line=False, trailing_space=True, type_stub=False, before_lim='', num_of_spaces=4,
-                 skip_empty=False, **kwargs):
+                 skip_empty=False, skip_types=False, skip_default_values=False, **kwargs):
         """
         :param elem_raw: raw data of the element (def or class).
         :param spaces: the leading whitespaces before the element
@@ -1309,6 +1312,8 @@ class DocString(object):
         :type num_of_spaces: integer
         :param skip_empty: if set, will skip writing the params, returns, or raises if they are empty
         :type skip_empty: boolean
+        :type skip_types: boolean
+        :type skip_default_values: boolean
 
         """
         self.dst = DocsTools()
@@ -1378,6 +1383,8 @@ class DocString(object):
         self.quotes = quotes
         self.num_of_spaces = num_of_spaces
         self.skip_empty = skip_empty
+        self.skip_types = skip_types
+        self.skip_default_values = skip_default_values
 
     def __str__(self):
         # for debugging
@@ -1981,14 +1988,14 @@ class DocString(object):
             raw += self.dst.googledoc.get_key_section_header('param', self.docs['out']['spaces'])
             for p in self.docs['out']['params']:
                 raw += self.docs['out']['spaces'] + spaces + p[0]
-                if p[2] is not None and len(p[2]) > 0:
+                if not self.skip_types and p[2] is not None and len(p[2]) > 0:
                     raw += ' (' + p[2]
                     if len(p) > 3 and p[3] is not None:
                         raw += ', optional'
                     raw += ')'
                 raw += ': ' + with_space(p[1]).strip()
                 if len(p) > 2:
-                    if 'default' not in p[1].lower() and len(p) > 3 and p[3] is not None:
+                    if not self.skip_default_values and 'default' not in p[1].lower() and len(p) > 3 and p[3] is not None:
                         raw += ' (Default value = ' + str(p[3]) + ')'
                 raw += '\n'
         elif self.dst.style['out'] == 'groups':
